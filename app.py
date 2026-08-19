@@ -1,93 +1,98 @@
-from __future__ import annotations
-
-from datetime import timedelta
+import os
 
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 
-from src.bubble import add_risk_score, calculate_price_metrics
-from src.data import download_prices, load_watchlist
+from src.data import fetch_equity_data
+from src.fundamentals import calculate_fundamentals, display_metrics
+from src.macro import fetch_country_macro
 
-st.set_page_config(page_title="Asia AI Equity Price-Risk Dashboard", layout="wide")
+st.set_page_config(page_title="Asia AI Equity Risk Dashboard", layout="wide")
+st.title("Asia AI Equity Risk Dashboard")
+st.caption("Free-data research dashboard. It is not investment advice.")
 
+with st.sidebar:
+    st.header("Inputs")
+    symbol = st.text_input("Yahoo Finance ticker", value="TSM").strip().upper()
+    country = st.text_input("World Bank country code", value="TWN").strip().upper()
+    st.caption("Examples: TSM / TWN, 005930.KS / KOR, 7203.T / JPN")
+    refresh = st.button("Refresh data")
 
-@st.cache_data(ttl=timedelta(minutes=30), show_spinner=False)
-def refresh_market_data() -> tuple[pd.DataFrame, pd.DataFrame, str]:
-    watchlist = load_watchlist()
-    result = download_prices(watchlist["ticker"])
-    metrics = add_risk_score(calculate_price_metrics(result.prices))
-    successful = watchlist.merge(metrics, on="ticker", how="inner")
-    failed = watchlist.merge(result.failures, on="ticker", how="inner")
-    return successful, failed, result.updated_at.strftime("%Y-%m-%d %H:%M UTC")
+@st.cache_data(ttl=900, show_spinner=False)
+def load_equity(symbol_: str):
+    return fetch_equity_data(symbol_)
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_macro(country_: str):
+    return fetch_country_macro(country_)
 
-st.title("Asia AI Equity Price-Risk Dashboard")
-st.caption("A market-data research screen using Yahoo Finance daily prices. It measures relative price extension and realized risk; it does not predict bubbles or provide investment advice.")
+if refresh:
+    load_equity.clear()
+    load_macro.clear()
 
-if st.button("Refresh market data", type="primary"):
-    st.cache_data.clear()
+if not symbol:
+    st.info("Enter a Yahoo Finance ticker to begin.")
+    st.stop()
 
-with st.spinner("Downloading daily market data from Yahoo Finance..."):
-    results, failed_downloads, updated_at = refresh_market_data()
+with st.spinner("Retrieving free public data..."):
+    equity = load_equity(symbol)
+    macro = load_macro(country) if country else None
 
-st.caption(f"Last market-data update: {updated_at}")
+prices = equity["prices"]
+fundamental = calculate_fundamentals(equity["fundamentals"], prices)
+tab_price, tab_fundamentals, tab_macro, tab_quality = st.tabs(["Price Risk", "Fundamentals & Liquidity", "Country Macro", "Data Quality"])
 
-countries = ["All covered markets"] + sorted(results["country"].unique().tolist()) if not results.empty else ["All covered markets"]
-selected_country = st.selectbox("Country / market", countries)
-filtered = results if selected_country == "All covered markets" else results[results["country"] == selected_country]
+with tab_price:
+    st.subheader(f"Price Risk — {symbol}")
+    if prices.empty:
+        st.warning("No price history was returned by Yahoo Finance for this ticker.")
+    else:
+        close = prices["Close"]
+        rolling_high = close.cummax()
+        drawdown = close / rolling_high - 1
+        returns = close.pct_change().dropna()
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Latest close", f"{close.iloc[-1]:,.2f}")
+        c2.metric("Max drawdown", f"{drawdown.min():.1%}")
+        c3.metric("Annualized volatility", f"{returns.std() * (252 ** 0.5):.1%}")
+        st.line_chart(close, height=300)
+        st.caption("Existing price-risk view is retained: chart, drawdown and annualized realised-volatility context from Yahoo Finance history.")
 
-average_score = filtered["risk_score"].mean() if not filtered.empty else float("nan")
-high_risk = int((filtered["risk_band"] == "High").sum()) if not filtered.empty else 0
-c1, c2, c3, c4, c5 = st.columns(5)
-c1.metric("Watchlist names", len(load_watchlist()))
-c2.metric("Successful downloads", len(results))
-c3.metric("Failed downloads", len(failed_downloads))
-c4.metric("Average risk score", f"{average_score:.1f}" if pd.notna(average_score) else "—")
-c5.metric("High-risk names", high_risk)
+with tab_fundamentals:
+    st.subheader(f"Fundamentals & Liquidity — {symbol}")
+    a, b, c = st.columns(3)
+    a.metric("Fundamental Stretch", "Not available" if fundamental["fundamental_stretch_score"] is None else f"{fundamental['fundamental_stretch_score']:.1f} / 100")
+    b.metric("Liquidity Risk", "Not available" if fundamental["liquidity_risk_score"] is None else f"{fundamental['liquidity_risk_score']:.1f} / 100")
+    c.metric("Field coverage", f"{fundamental['coverage']['percent']:.0f}%")
+    st.caption(fundamental["score_note"])
+    st.dataframe(display_metrics(fundamental), use_container_width=True, hide_index=True)
+    missing = [name for name, state in equity["missing_status"].items() if state != "available"]
+    if missing:
+        st.info("Not reported by available free providers: " + ", ".join(missing))
 
-if filtered.empty:
-    st.warning("No valid prices were loaded for this selection. Review the failed-download table below and try refresh.")
-else:
-    country_summary = results.groupby("country", as_index=False).agg(
-        average_risk_score=("risk_score", "mean"),
-        high_risk_share=("risk_band", lambda x: (x == "High").mean() * 100),
-        names=("ticker", "count"),
-    )
-    chart_left, chart_right = st.columns(2)
-    with chart_left:
-        st.plotly_chart(
-            px.bar(country_summary, x="country", y="average_risk_score", color="average_risk_score", range_color=[0, 100], title="Average price-risk score by market"),
-            use_container_width=True,
-        )
-    with chart_right:
-        st.plotly_chart(
-            px.bar(country_summary, x="country", y="high_risk_share", color="high_risk_share", range_color=[0, 100], title="High-risk share by market (%)"),
-            use_container_width=True,
-        )
+with tab_macro:
+    st.subheader(f"Country Macro — {country or 'No country selected'}")
+    if not macro:
+        st.info("Enter a World Bank country code to load macro context.")
+    else:
+        st.caption(macro["note"])
+        macro_rows = []
+        for name, item in macro["fields"].items():
+            value = item["value"]
+            macro_rows.append({"Indicator": name.replace("_", " ").title(), "Value": "No data" if value is None else f"{value:,.2f}", "Source date": item["source_date"] or "—", "Status": item["status"], "Detail": item["detail"]})
+        st.metric("Macro coverage", f"{macro['coverage']['percent']:.0f}%")
+        st.dataframe(pd.DataFrame(macro_rows), use_container_width=True, hide_index=True)
 
-    st.subheader("Price-risk screen")
-    columns = [
-        "ticker", "company", "country", "theme", "risk_score", "risk_band", "return_3m", "return_6m", "return_12m",
-        "distance_ma50", "distance_ma200", "distance_trailing_high", "annualized_volatility", "max_drawdown", "close", "data_date",
-    ]
-    table = filtered[columns].copy().sort_values("risk_score", ascending=False)
-    numeric_columns = [c for c in columns if c not in {"ticker", "company", "country", "theme", "risk_band", "data_date"}]
-    st.dataframe(
-        table,
-        use_container_width=True,
-        hide_index=True,
-        column_config={column: st.column_config.NumberColumn(format="%.1f") for column in numeric_columns},
-    )
-
-st.subheader("Failed downloads")
-if failed_downloads.empty:
-    st.success("Every watchlist ticker returned enough daily price history for the current calculation window.")
-else:
-    st.dataframe(failed_downloads[["ticker", "company", "country", "exchange", "reason"]], use_container_width=True, hide_index=True)
-    st.caption("Failures are shown explicitly rather than being replaced with simulated values. Yahoo Finance symbols, availability, and history can change.")
-
-with st.expander("How the score works"):
-    st.markdown("""
-The 0–100 score ranks only the securities that returned valid data in the current refresh. It combines six-month momentum (30%), distance above the 200-day moving average (20%), proximity to the trailing high (15%), annualized historical volatility (20%), and maximum-drawdown severity (15%). A high score indicates relative price extension and realized risk within this selected universe—not a forecast of a bubble or a trading signal.
-""")
+with tab_quality:
+    st.subheader("Data Quality & Provider Status")
+    st.write(f"Retrieved: {equity['retrieved_at']}")
+    st.write("Sources: " + (", ".join(equity["sources"]) or "No provider returned data"))
+    st.metric("Yahoo/Alpha fundamental coverage", f"{equity['coverage']['percent']:.0f}%")
+    status_rows = []
+    for name, item in equity["provider_status"].items():
+        status_rows.append({"Provider": name, "Status": item["status"], "Source date": item["source_date"] or "—", "Checked": item["checked_at"], "Detail": item["detail"]})
+    st.dataframe(pd.DataFrame(status_rows), use_container_width=True, hide_index=True)
+    st.subheader("Provider-required modules")
+    st.dataframe(pd.DataFrame([{"Module": k.replace("_", " ").title(), "Status": v} for k, v in equity["provider_required"].items()]), use_container_width=True, hide_index=True)
+    if not os.getenv("ALPHA_VANTAGE_API_KEY"):
+        st.info("Alpha Vantage enrichment is disabled. Add ALPHA_VANTAGE_API_KEY to a local environment or Streamlit secret to enable it; no key is needed for Yahoo Finance and World Bank data.")

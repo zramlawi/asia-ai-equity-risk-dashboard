@@ -1,85 +1,135 @@
-"""Live Yahoo Finance price retrieval and data-quality reporting."""
+"""Free public-market data retrieval with explicit provenance and coverage."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+import os
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Iterable
+from typing import Any
 
 import pandas as pd
+import requests
 import yfinance as yf
 
-DEFAULT_PERIOD = "2y"
-REQUIRED_HISTORY_DAYS = 210
+
+FUNDAMENTAL_FIELDS = [
+    "marketCap", "trailingPE", "forwardPE", "priceToBook", "enterpriseToEbitda",
+    "trailingEps", "returnOnEquity", "profitMargins", "revenueGrowth",
+    "earningsGrowth", "totalCash", "totalDebt", "currentRatio", "quickRatio",
+    "operatingCashflow", "freeCashflow", "sharesOutstanding", "averageVolume",
+    "averageDailyVolume10Day", "fiftyTwoWeekHigh", "fiftyTwoWeekLow",
+]
 
 
-@dataclass
-class MarketDataResult:
-    prices: dict[str, pd.Series]
-    failures: pd.DataFrame
-    updated_at: datetime
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def load_watchlist(path: str | Path = "data/tickers.csv") -> pd.DataFrame:
-    """Load and validate the dashboard watchlist."""
-    watchlist = pd.read_csv(path, dtype=str).fillna("")
-    required = {"company", "ticker", "country", "exchange", "theme"}
-    missing = required.difference(watchlist.columns)
-    if missing:
-        raise ValueError(f"Watchlist is missing columns: {', '.join(sorted(missing))}")
-    watchlist["ticker"] = watchlist["ticker"].str.strip()
-    return watchlist.drop_duplicates(subset="ticker").reset_index(drop=True)
+def _status(provider: str, state: str, detail: str = "", source_date: str | None = None) -> dict[str, str]:
+    return {"provider": provider, "status": state, "detail": detail, "checked_at": utc_now(), "source_date": source_date or ""}
 
 
-def _close_series(frame: pd.DataFrame, ticker: str) -> pd.Series:
-    if frame.empty:
-        return pd.Series(dtype=float)
-    if isinstance(frame.columns, pd.MultiIndex):
-        if ("Close", ticker) in frame.columns:
-            series = frame[("Close", ticker)]
-        elif ("Adj Close", ticker) in frame.columns:
-            series = frame[("Adj Close", ticker)]
-        else:
-            return pd.Series(dtype=float)
-    else:
-        column = "Close" if "Close" in frame.columns else "Adj Close"
-        series = frame[column] if column in frame.columns else pd.Series(dtype=float)
-    return pd.to_numeric(series, errors="coerce").dropna().rename(ticker)
+def alpha_vantage_key() -> str | None:
+    return os.getenv("ALPHA_VANTAGE_API_KEY") or os.getenv("alpha_vantage_api_key")
 
 
-def download_prices(tickers: Iterable[str], period: str = DEFAULT_PERIOD) -> MarketDataResult:
-    """Download daily close prices and record every unavailable or insufficient ticker."""
-    ticker_list = list(dict.fromkeys(str(t).strip() for t in tickers if str(t).strip()))
-    if not ticker_list:
-        return MarketDataResult({}, pd.DataFrame(columns=["ticker", "reason"]), datetime.now(timezone.utc))
-
+def _read_yahoo_info(ticker: yf.Ticker) -> tuple[dict[str, Any], str]:
     try:
-        raw = yf.download(
-            tickers=ticker_list,
-            period=period,
-            interval="1d",
-            auto_adjust=True,
-            progress=False,
-            group_by="column",
-            threads=True,
-        )
+        info = ticker.get_info() or {}
+        return info, "available"
     except Exception as exc:
-        failures = pd.DataFrame({"ticker": ticker_list, "reason": [f"download error: {exc}"] * len(ticker_list)})
-        return MarketDataResult({}, failures, datetime.now(timezone.utc))
+        return {}, f"unavailable: {exc}"
 
-    prices: dict[str, pd.Series] = {}
-    failures: list[dict[str, str]] = []
-    for ticker in ticker_list:
-        series = _close_series(raw, ticker)
-        if series.empty:
-            failures.append({"ticker": ticker, "reason": "No daily close prices returned by Yahoo Finance"})
-        elif len(series) < REQUIRED_HISTORY_DAYS:
-            failures.append({"ticker": ticker, "reason": f"Only {len(series)} observations; need at least {REQUIRED_HISTORY_DAYS}"})
+
+def _alpha_vantage_overview(symbol: str, key: str) -> tuple[dict[str, Any], str]:
+    try:
+        response = requests.get(
+            "https://www.alphavantage.co/query",
+            params={"function": "OVERVIEW", "symbol": symbol, "apikey": key},
+            timeout=15,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if "Note" in payload or "Information" in payload:
+            return {}, payload.get("Note") or payload.get("Information")
+        return payload if payload.get("Symbol") else {}, "available" if payload.get("Symbol") else "no record returned"
+    except requests.RequestException as exc:
+        return {}, f"unavailable: {exc}"
+
+
+def _coerce(value: Any) -> float | None:
+    if value in (None, "", "None", "-", "N/A"):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def fetch_equity_data(symbol: str, period: str = "2y") -> dict[str, Any]:
+    """Return prices, free fundamentals, provider status, and missing-field reporting."""
+    symbol = symbol.strip().upper()
+    report: dict[str, Any] = {
+        "symbol": symbol,
+        "retrieved_at": utc_now(),
+        "sources": [],
+        "provider_status": {},
+        "missing_status": {},
+        "prices": pd.DataFrame(),
+        "fundamentals": {},
+        "coverage": {},
+    }
+    try:
+        ticker = yf.Ticker(symbol)
+        prices = ticker.history(period=period, auto_adjust=True)
+        if prices.empty:
+            report["provider_status"]["Yahoo Finance prices"] = _status("Yahoo Finance", "no_data", "No price history returned")
         else:
-            prices[ticker] = series
+            prices.index = pd.to_datetime(prices.index).tz_localize(None)
+            report["prices"] = prices
+            report["provider_status"]["Yahoo Finance prices"] = _status(
+                "Yahoo Finance", "available", source_date=str(prices.index.max().date())
+            )
+            report["sources"].append("Yahoo Finance (price history)")
+        yahoo, yahoo_status = _read_yahoo_info(ticker)
+        report["provider_status"]["Yahoo Finance fundamentals"] = _status("Yahoo Finance", "available" if yahoo else "partial", yahoo_status)
+        report["sources"].append("Yahoo Finance (quote summary)")
+    except Exception as exc:
+        yahoo = {}
+        report["provider_status"]["Yahoo Finance prices"] = _status("Yahoo Finance", "unavailable", str(exc))
+        report["provider_status"]["Yahoo Finance fundamentals"] = _status("Yahoo Finance", "unavailable", str(exc))
 
-    return MarketDataResult(
-        prices=prices,
-        failures=pd.DataFrame(failures, columns=["ticker", "reason"]),
-        updated_at=datetime.now(timezone.utc),
-    )
+    fundamentals = {field: yahoo.get(field) for field in FUNDAMENTAL_FIELDS}
+    fundamentals["currency"] = yahoo.get("currency")
+    fundamentals["longName"] = yahoo.get("longName") or yahoo.get("shortName")
+    fundamentals["sector"] = yahoo.get("sector")
+    fundamentals["quoteType"] = yahoo.get("quoteType")
+    fundamentals["lastPrice"] = yahoo.get("regularMarketPrice")
+
+    key = alpha_vantage_key()
+    if key:
+        alpha, alpha_status = _alpha_vantage_overview(symbol, key)
+        report["provider_status"]["Alpha Vantage"] = _status("Alpha Vantage", "available" if alpha else "partial", alpha_status)
+        if alpha:
+            report["sources"].append("Alpha Vantage (optional OVERVIEW)")
+            av_map = {"PERatio": "trailingPE", "PriceToBookRatio": "priceToBook", "EVToEBITDA": "enterpriseToEbitda", "EPS": "trailingEps", "ProfitMargin": "profitMargins", "ReturnOnEquityTTM": "returnOnEquity", "RevenueTTM": "revenueTTM", "EBITDA": "ebitda"}
+            for av_name, local_name in av_map.items():
+                if fundamentals.get(local_name) in (None, ""):
+                    fundamentals[local_name] = _coerce(alpha.get(av_name))
+    else:
+        report["provider_status"]["Alpha Vantage"] = _status("Alpha Vantage", "disabled", "Set ALPHA_VANTAGE_API_KEY locally to enable optional enrichment")
+
+    for field in FUNDAMENTAL_FIELDS:
+        if fundamentals.get(field) in (None, ""):
+            report["missing_status"][field] = "not reported by available providers"
+        else:
+            report["missing_status"][field] = "available"
+    available = sum(value == "available" for value in report["missing_status"].values())
+    report["coverage"] = {"available_fields": available, "total_fields": len(FUNDAMENTAL_FIELDS), "percent": round(100 * available / len(FUNDAMENTAL_FIELDS), 1)}
+    report["fundamentals"] = fundamentals
+    report["provider_required"] = {
+        "analyst_estimates": "Unavailable: provider-required",
+        "options": "Unavailable: provider-required",
+        "short_interest": "Unavailable: provider-required",
+        "institutional_ownership": "Unavailable: provider-required",
+        "live_geopolitical_events": "Unavailable: provider-required",
+    }
+    return report

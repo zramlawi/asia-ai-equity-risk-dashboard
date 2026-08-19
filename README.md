@@ -1,51 +1,44 @@
-# Asia AI Equity Price-Risk Dashboard
+# Asia AI Equity Risk Dashboard
 
-An interactive Streamlit research screen for a focused universe of Asian AI, semiconductor, and major technology companies. It downloads daily market prices from Yahoo Finance at refresh time and calculates transparent, price-derived risk indicators.
+A Streamlit research dashboard for public-market price risk, reported fundamentals, liquidity context, and country macro indicators. It is designed to run with **free public sources** and does not provide investment advice.
 
-> This is a research screen, not investment advice. A high score is not a prediction that a security will fall or that a market bubble exists.
-
-## What it covers
-
-The default watchlist contains 40 companies across Japan, South Korea, Taiwan, China and Hong Kong, India, Singapore, and selected ASEAN markets. Every row in `data/tickers.csv` includes a company, exchange-compatible Yahoo Finance ticker, country, exchange, and theme label.
-
-## Run locally
+## Free-data setup
 
 ```bash
+git clone https://github.com/zramlawi/asia-ai-equity-risk-dashboard.git
+cd asia-ai-equity-risk-dashboard
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Use **Refresh market data** to clear the 30-minute in-app cache and request a new Yahoo Finance download. The dashboard shows the exact UTC time of the latest fetch.
+The dashboard works without a key using Yahoo Finance price/quote data and World Bank Open Data. Enter a Yahoo-compatible ticker and a World Bank three-letter economy code, for example `TSM` / `TWN`, `005930.KS` / `KOR`, or `7203.T` / `JPN`.
 
-## Data and indicators
+## Optional Alpha Vantage
 
-The app uses `yfinance` to request roughly two years of daily, auto-adjusted closing-price history. It reports a ticker as failed if Yahoo Finance returns no price series or fewer than 210 daily observations. It never invents a fallback price or risk score.
+Alpha Vantage is disabled by default. To enable its optional OVERVIEW enrichment locally, copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and add a personal key, or set `ALPHA_VANTAGE_API_KEY` in the environment. Never commit a real key; `.streamlit/secrets.toml` and `.env` are ignored.
 
-For each valid ticker, the screen displays:
+## Dashboard modules
 
-- Three-, six-, and 12-month returns.
-- Distance from the 50-day and 200-day moving averages.
-- Distance from the trailing high in the returned history.
-- Annualized historical daily-return volatility.
-- Maximum drawdown in the returned history.
-- A normalized 0–100 relative price-risk score.
+- **Price Risk:** Yahoo Finance close-price chart, max drawdown, and realized annualized volatility.
+- **Fundamentals & Liquidity:** reported valuation, profitability, balance-sheet, and trading-liquidity fields; 0–100 Fundamental Stretch and Liquidity Risk scores.
+- **Country Macro:** World Bank GDP growth, CPI inflation, unemployment, current-account balance, and official exchange-rate context.
+- **Data Quality:** source names, timestamps, field coverage, provider status, missing-data explanations, and provider-required datasets.
 
-See [the methodology](docs/bubble-risk-methodology.md) for the formula and interpretation.
+## Limitations
 
-## Limitations and troubleshooting
+Yahoo Finance data can be delayed, incomplete, unavailable for particular exchanges, or subject to symbol mapping differences. World Bank macro indicators are annual and released on different schedules; the latest observation year can vary by indicator. Alpha Vantage free access can be rate-limited. The app does not fabricate or impute missing fundamentals.
 
-- Yahoo Finance data can be delayed, incomplete, unavailable, corrected, or revised. Exchange symbols may change.
-- Prices are real market observations but are not valuation, earnings, balance-sheet, cash-flow, analyst-estimate, ownership, or liquidity data.
-- The risk score is relative to the successfully downloaded current watchlist. It is not comparable to a score from a different watchlist or refresh without context.
-- A failed download table identifies symbols that need checking. First verify the ticker suffix and whether the exchange has current Yahoo Finance coverage, then refresh.
-- The dashboard requires internet access in its runtime environment. It is not designed to provide an offline market-data feed.
+Analyst estimates, options, short interest, institutional ownership, and live geopolitical-event scoring remain visibly unavailable because they require suitable providers. See [free-data methodology](docs/free-data-methodology.md) and [bubble-risk methodology](docs/bubble-risk-methodology.md).
 
-## Project structure
+## Deployment
 
-- `data/tickers.csv` — curated watchlist.
-- `src/data.py` — watchlist validation, Yahoo Finance download, and quality reporting.
-- `src/bubble.py` — price metrics and normalized relative risk score.
-- `app.py` — Streamlit user interface.
-- `docs/bubble-risk-methodology.md` — score design and limitations.
+For local use, keep keys in environment variables or untracked Streamlit secrets. For a public Streamlit deployment, configure `ALPHA_VANTAGE_API_KEY` only in the host’s secret manager. A public deployment can run without that secret but must disclose source latency, coverage gaps, and the non-advice limitation.
+
+## Troubleshooting
+
+- **No price data:** confirm the Yahoo Finance ticker suffix and retry later.
+- **Partial fundamentals:** the issuer or exchange may not report a field through the free sources; consult the Data Quality tab.
+- **No macro data:** verify the World Bank three-letter economy code, such as `TWN`, `KOR`, `JPN`, or `CHN`.
+- **Alpha Vantage unavailable:** verify the key is configured privately and account for free-tier request limits.
