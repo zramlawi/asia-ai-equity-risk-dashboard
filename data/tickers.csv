@@ -1,60 +1,41 @@
-ticker,company,country,exchange,currency,sector,theme,market_cap_bucket,notes
-000660.KS,SK hynix,South Korea,KRX,KRW,Semiconductors,AI memory,Large,Existing row; verify coverage with your data provider
-005930.KS,Samsung Electronics,South Korea,KRX,KRW,Semiconductors,AI infrastructure,Large,Existing row; verify coverage with your data provider
-042700.KS,HANMI Semiconductor,South Korea,KRX,KRW,Semiconductor equipment,AI packaging,Large,Added watchlist row; verify coverage with your data provider
-035420.KS,NAVER,South Korea,KRX,KRW,Internet,AI platforms,Large,Added watchlist row; verify coverage with your data provider
-035720.KS,Kakao,South Korea,KRX,KRW,Internet,AI platforms,Large,Added watchlist row; verify coverage with your data provider
-011070.KS,LG Innotek,South Korea,KRX,KRW,Electronic components,AI hardware,Large,Added watchlist row; verify coverage with your data provider
-373220.KS,LG Energy Solution,South Korea,KRX,KRW,Energy storage,AI infrastructure,Large,Added watchlist row; verify coverage with your data provider
-402340.KS,SK Square,South Korea,KRX,KRW,Technology holdings,AI semiconductors,Large,Added watchlist row; verify coverage with your data provider
-012450.KS,Hanwha Aerospace,South Korea,KRX,KRW,Aerospace and defense,AI systems,Large,Added watchlist row; verify coverage with your data provider
-034020.KS,Doosan Enerbility,South Korea,KRX,KRW,Energy equipment,AI power infrastructure,Large,Added watchlist row; verify coverage with your data provider
-267260.KS,HD Hyundai Electric,South Korea,KRX,KRW,Electrical equipment,AI power infrastructure,Large,Added watchlist row; verify coverage with your data provider
-012330.KS,Hyundai Mobis,South Korea,KRX,KRW,Automotive technology,AI mobility,Large,Added watchlist row; verify coverage with your data provider
-2330.TW,Taiwan Semiconductor Manufacturing,Taiwan,TWSE,TWD,Semiconductors,AI foundry,Large,Existing local listing; avoid double counting with ADR
-2454.TW,MediaTek,Taiwan,TWSE,TWD,Semiconductors,AI edge chips,Large,Added watchlist row; verify coverage with your data provider
-2317.TW,Hon Hai Precision Industry,Taiwan,TWSE,TWD,Electronic manufacturing,AI servers,Large,Added watchlist row; verify coverage with your data provider
-2382.TW,Quanta Computer,Taiwan,TWSE,TWD,Electronic manufacturing,AI servers,Large,Added watchlist row; verify coverage with your data provider
-2308.TW,Delta Electronics,Taiwan,TWSE,TWD,Power electronics,AI power infrastructure,Large,Added watchlist row; verify coverage with your data provider
-3231.TW,Wistron,Taiwan,TWSE,TWD,Electronic manufacturing,AI servers,Large,Added watchlist row; verify coverage with your data provider
-3711.TW,ASE Technology Holding,Taiwan,TWSE,TWD,Semiconductor services,AI packaging,Large,Added watchlist row; verify coverage with your data provider
-3037.TW,Unimicron Technology,Taiwan,TWSE,TWD,Electronic components,AI hardware,Large,Added watchlist row; verify coverage with your data provider
-2345.TW,Accton Technology,Taiwan,TWSE,TWD,Networking equipment,AI networking,Large,Added watchlist row; verify coverage with your data provider
-2379.TW,Realtek Semiconductor,Taiwan,TWSE,TWD,Semiconductors,AI connectivity,Large,Added watchlist row; verify coverage with your data provider
-3008.TW,Largan Precision,Taiwan,TWSE,TWD,Optical components,AI devices,Large,Added watchlist row; verify coverage with your data provider
-9984.T,SoftBank Group,Japan,TSE,JPY,Technology,AI investment,Large,Existing row; verify coverage with your data provider
-6758.T,Sony Group,Japan,TSE,JPY,Technology,AI platforms,Large,Existing row; verify coverage with your data provider
-8035.T,Tokyo Electron,Japan,TSE,JPY,Semiconductor equipment,AI chip production,Large,Added watchlist row; Yahoo Finance coverage indicated
-6857.T,Advantest,Japan,TSE,JPY,Semiconductor equipment,AI chip testing,Large,Added watchlist row; Yahoo Finance coverage indicated
-4063.T,Shin-Etsu Chemical,Japan,TSE,JPY,Materials,Semiconductor wafers,Large,Added watchlist row; verify coverage with your data provider
-6146.T,DISCO,Japan,TSE,JPY,Semiconductor equipment,AI chip production,Large,Added watchlist row; verify coverage with your data provider
-6920.T,Lasertec,Japan,TSE,JPY,Semiconductor equipment,AI chip inspection,Large,Added watchlist row; verify coverage with your data provider
-7735.T,SCREEN Holdings,Japan,TSE,JPY,Semiconductor equipment,AI chip production,Large,Added watchlist row; verify coverage with your data provider
-6723.T,Renesas Electronics,Japan,TSE,JPY,Semiconductors,AI edge chips,Large,Added watchlist row; verify coverage with your data provider
-6954.T,Fanuc,Japan,TSE,JPY,Industrial automation,AI robotics,Large,Added watchlist row; verify coverage with your data provider
-6861.T,Keyence,Japan,TSE,JPY,Industrial automation,AI sensors,Large,Added watchlist row; verify coverage with your data provider
-6501.T,Hitachi,Japan,TSE,JPY,Industrial technology,AI infrastructure,Large,Added watchlist row; verify coverage with your data provider
-0700.HK,Tencent Holdings,China,HKEX,HKD,Internet,AI platforms,Large,Existing row; verify coverage with your data provider
-9988.HK,Alibaba Group,China,HKEX,HKD,Internet,Cloud AI,Large,Existing local listing; avoid double counting with ADR
-9888.HK,Baidu,China,HKEX,HKD,Internet,AI platforms,Large,Added watchlist row; Yahoo Finance coverage indicated
-9618.HK,JD.com,China,HKEX,HKD,Internet,AI commerce,Large,Added watchlist row; verify coverage with your data provider
-3690.HK,Meituan,China,HKEX,HKD,Internet,AI commerce,Large,Added watchlist row; verify coverage with your data provider
-1810.HK,Xiaomi,China,HKEX,HKD,Consumer technology,AI devices,Large,Added watchlist row; verify coverage with your data provider
-0992.HK,Lenovo Group,China,HKEX,HKD,Hardware,AI PCs and servers,Large,Added watchlist row; verify coverage with your data provider
-0981.HK,SMIC,China,HKEX,HKD,Semiconductors,AI foundry,Large,Added watchlist row; verify coverage with your data provider
-1024.HK,Kuaishou Technology,China,HKEX,HKD,Internet,AI content platforms,Large,Added watchlist row; verify coverage with your data provider
-9999.HK,NetEase,China,HKEX,HKD,Internet,AI content and games,Large,Added watchlist row; verify coverage with your data provider
-0020.HK,SenseTime Group,China,HKEX,HKD,Software,AI software,Mid,Added watchlist row; verify coverage with your data provider
-0268.HK,Kingdee International Software,China,HKEX,HKD,Software,Enterprise AI,Mid,Added watchlist row; verify coverage with your data provider
-INFY.NS,Infosys,India,NSE,INR,IT services,Enterprise AI,Large,Replaces ADR example with local listing
-TCS.NS,Tata Consultancy Services,India,NSE,INR,IT services,Enterprise AI,Large,Added watchlist row; verify coverage with your data provider
-HCLTECH.NS,HCL Technologies,India,NSE,INR,IT services,Enterprise AI,Large,Added watchlist row; Yahoo Finance coverage indicated
-WIPRO.NS,Wipro,India,NSE,INR,IT services,Enterprise AI,Large,Added watchlist row; verify coverage with your data provider
-TECHM.NS,Tech Mahindra,India,NSE,INR,IT services,Enterprise AI,Large,Added watchlist row; verify coverage with your data provider
-LTIM.NS,LTIMindtree,India,NSE,INR,IT services,Enterprise AI,Large,Added watchlist row; verify coverage with your data provider
-PERSISTENT.NS,Persistent Systems,India,NSE,INR,IT services,Enterprise AI,Large,Added watchlist row; verify coverage with your data provider
-MPHASIS.NS,Mphasis,India,NSE,INR,IT services,Enterprise AI,Large,Added watchlist row; verify coverage with your data provider
-COFORGE.NS,Coforge,India,NSE,INR,IT services,Enterprise AI,Mid,Added watchlist row; verify coverage with your data provider
-TATAELXSI.NS,Tata Elxsi,India,NSE,INR,Software engineering,AI engineering,Mid,Added watchlist row; verify coverage with your data provider
-KPITTECH.NS,KPIT Technologies,India,NSE,INR,Automotive software,AI mobility,Mid,Added watchlist row; Yahoo Finance coverage indicated
-OFSS.NS,Oracle Financial Services Software,India,NSE,INR,Software,Enterprise AI,Mid,Added watchlist row; verify coverage with your data provider
+company,ticker,country,exchange,theme
+Toyota Motor,7203.T,Japan,Tokyo Stock Exchange,Automotive AI
+Sony Group,6758.T,Japan,Tokyo Stock Exchange,Consumer electronics and imaging AI
+Keyence,6861.T,Japan,Tokyo Stock Exchange,Factory automation
+Tokyo Electron,8035.T,Japan,Tokyo Stock Exchange,Semiconductor equipment
+Advantest,6857.T,Japan,Tokyo Stock Exchange,Semiconductor test equipment
+Renesas Electronics,6723.T,Japan,Tokyo Stock Exchange,Automotive semiconductors
+SoftBank Group,9984.T,Japan,Tokyo Stock Exchange,AI investment and telecom
+Samsung Electronics,005930.KS,South Korea,Korea Exchange,Memory and AI semiconductors
+SK Hynix,000660.KS,South Korea,Korea Exchange,HBM and memory semiconductors
+Naver,035420.KS,South Korea,Korea Exchange,Internet and AI platforms
+Kakao,035720.KS,South Korea,Korea Exchange,Internet and AI platforms
+LG Electronics,066570.KS,South Korea,Korea Exchange,Consumer electronics and AI
+TSMC,2330.TW,Taiwan,Taiwan Stock Exchange,Foundry and AI semiconductors
+MediaTek,2454.TW,Taiwan,Taiwan Stock Exchange,Chip design
+Hon Hai Precision,2317.TW,Taiwan,Taiwan Stock Exchange,AI server manufacturing
+ASE Technology,3711.TW,Taiwan,Taiwan Stock Exchange,Semiconductor packaging
+Delta Electronics,2308.TW,Taiwan,Taiwan Stock Exchange,Power electronics and data centers
+Quanta Computer,2382.TW,Taiwan,Taiwan Stock Exchange,AI server manufacturing
+Baidu,9888.HK,China and Hong Kong,Hong Kong Stock Exchange,AI and cloud
+Alibaba Group,9988.HK,China and Hong Kong,Hong Kong Stock Exchange,Cloud and AI
+Tencent Holdings,0700.HK,China and Hong Kong,Hong Kong Stock Exchange,Internet and AI
+Xiaomi,1810.HK,China and Hong Kong,Hong Kong Stock Exchange,Smart devices and AI
+Lenovo Group,0992.HK,China and Hong Kong,Hong Kong Stock Exchange,PC and AI infrastructure
+SMIC,0981.HK,China and Hong Kong,Hong Kong Stock Exchange,Semiconductor foundry
+Meituan,3690.HK,China and Hong Kong,Hong Kong Stock Exchange,Internet platform and AI
+Infosys,INFY.NS,India,National Stock Exchange of India,IT services and AI
+Tata Consultancy Services,TCS.NS,India,National Stock Exchange of India,IT services and AI
+HCL Technologies,HCLTECH.NS,India,National Stock Exchange of India,IT services and AI
+Wipro,WIPRO.NS,India,National Stock Exchange of India,IT services and AI
+Bharti Airtel,BHARTIARTL.NS,India,National Stock Exchange of India,Telecom and digital infrastructure
+Reliance Industries,RELIANCE.NS,India,National Stock Exchange of India,Digital platforms and telecom
+Sea Limited,SE,Singapore,NYSE,Digital platforms and e-commerce
+Singapore Telecommunications,Z74.SI,Singapore,Singapore Exchange,Telecom and digital infrastructure
+Venture Corporation,V03.SI,Singapore,Singapore Exchange,Electronics manufacturing
+AEM Holdings,AWX.SI,Singapore,Singapore Exchange,Semiconductor test equipment
+Grab Holdings,GRAB,Selected ASEAN,NASDAQ,Digital platform and AI
+GDS Holdings,GDS,Selected ASEAN,NASDAQ,Data centers
+Genting Singapore,G13.SI,Singapore,Singapore Exchange,Digital operations
+Inari Amertron,0166.KL,Selected ASEAN,Bursa Malaysia,Semiconductor packaging and test
+Unisem,5005.KL,Selected ASEAN,Bursa Malaysia,Semiconductor packaging and test

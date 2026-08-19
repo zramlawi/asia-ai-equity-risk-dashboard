@@ -1,99 +1,93 @@
-from pathlib import Path
+from __future__ import annotations
+
+from datetime import timedelta
 
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 
-from src.bubble import calculate_risk, country_summary
+from src.bubble import add_risk_score, calculate_price_metrics
+from src.data import download_prices, load_watchlist
+
+st.set_page_config(page_title="Asia AI Equity Price-Risk Dashboard", layout="wide")
 
 
-ROOT = Path(__file__).resolve().parent
-DATA_PATH = ROOT / "data" / "tickers.csv"
-
-st.set_page_config(page_title="Asia AI Equity Risk Dashboard", page_icon="📊", layout="wide")
-
-
-@st.cache_data
-def load_universe(path: Path) -> pd.DataFrame:
-    df = pd.read_csv(path)
-    required = {"country", "ticker", "name"}
-    missing = required.difference(df.columns)
-    if missing:
-        raise ValueError(f"tickers.csv is missing required columns: {', '.join(sorted(missing))}")
-    return df
+@st.cache_data(ttl=timedelta(minutes=30), show_spinner=False)
+def refresh_market_data() -> tuple[pd.DataFrame, pd.DataFrame, str]:
+    watchlist = load_watchlist()
+    result = download_prices(watchlist["ticker"])
+    metrics = add_risk_score(calculate_price_metrics(result.prices))
+    successful = watchlist.merge(metrics, on="ticker", how="inner")
+    failed = watchlist.merge(result.failures, on="ticker", how="inner")
+    return successful, failed, result.updated_at.strftime("%Y-%m-%d %H:%M UTC")
 
 
-def first_available(frame: pd.DataFrame, names: list[str]) -> str | None:
-    return next((name for name in names if name in frame.columns), None)
+st.title("Asia AI Equity Price-Risk Dashboard")
+st.caption("A market-data research screen using Yahoo Finance daily prices. It measures relative price extension and realized risk; it does not predict bubbles or provide investment advice.")
 
+if st.button("Refresh market data", type="primary"):
+    st.cache_data.clear()
 
-def main() -> None:
-    st.title("Asia AI Equity Risk Dashboard")
-    st.caption("Scenario analysis of AI-related valuation and technology risk-off sensitivity. This is an educational dashboard, not investment advice.")
+with st.spinner("Downloading daily market data from Yahoo Finance..."):
+    results, failed_downloads, updated_at = refresh_market_data()
 
-    try:
-        universe = load_universe(DATA_PATH)
-    except Exception as exc:
-        st.error(f"Could not load {DATA_PATH.name}: {exc}")
-        st.stop()
+st.caption(f"Last market-data update: {updated_at}")
 
-    country_col = first_available(universe, ["country", "Country"])
-    ticker_col = first_available(universe, ["ticker", "Ticker", "symbol", "Symbol"])
-    name_col = first_available(universe, ["name", "Name", "company", "Company"])
+countries = ["All covered markets"] + sorted(results["country"].unique().tolist()) if not results.empty else ["All covered markets"]
+selected_country = st.selectbox("Country / market", countries)
+filtered = results if selected_country == "All covered markets" else results[results["country"] == selected_country]
 
-    if not all([country_col, ticker_col, name_col]):
-        st.error("The input file must include country, ticker, and name columns.")
-        st.stop()
+average_score = filtered["risk_score"].mean() if not filtered.empty else float("nan")
+high_risk = int((filtered["risk_band"] == "High").sum()) if not filtered.empty else 0
+c1, c2, c3, c4, c5 = st.columns(5)
+c1.metric("Watchlist names", len(load_watchlist()))
+c2.metric("Successful downloads", len(results))
+c3.metric("Failed downloads", len(failed_downloads))
+c4.metric("Average risk score", f"{average_score:.1f}" if pd.notna(average_score) else "—")
+c5.metric("High-risk names", high_risk)
 
-    countries = sorted(universe[country_col].dropna().astype(str).unique())
-    with st.sidebar:
-        st.header("Scenario controls")
-        selected_countries = st.multiselect("Countries", countries, default=countries)
-        shock = st.slider("Global technology risk-off shock (%)", min_value=-40, max_value=0, value=-15, step=1) / 100
-        valuation = st.slider("AI valuation compression (%)", min_value=0, max_value=50, value=20, step=1) / 100
-        earnings = st.slider("AI earnings shortfall (%)", min_value=0, max_value=50, value=15, step=1) / 100
-        st.caption("The engine combines disclosed input factors where available with transparent defaults.")
+if filtered.empty:
+    st.warning("No valid prices were loaded for this selection. Review the failed-download table below and try refresh.")
+else:
+    country_summary = results.groupby("country", as_index=False).agg(
+        average_risk_score=("risk_score", "mean"),
+        high_risk_share=("risk_band", lambda x: (x == "High").mean() * 100),
+        names=("ticker", "count"),
+    )
+    chart_left, chart_right = st.columns(2)
+    with chart_left:
+        st.plotly_chart(
+            px.bar(country_summary, x="country", y="average_risk_score", color="average_risk_score", range_color=[0, 100], title="Average price-risk score by market"),
+            use_container_width=True,
+        )
+    with chart_right:
+        st.plotly_chart(
+            px.bar(country_summary, x="country", y="high_risk_share", color="high_risk_share", range_color=[0, 100], title="High-risk share by market (%)"),
+            use_container_width=True,
+        )
 
-    if not selected_countries:
-        st.info("Select at least one country to view results.")
-        st.stop()
-
-    filtered = universe[universe[country_col].astype(str).isin(selected_countries)].copy()
-    scored = calculate_risk(filtered, market_shock=shock, valuation_compression=valuation, earnings_shortfall=earnings)
-    summary = country_summary(scored)
-
-    total = len(scored)
-    high = int((scored["risk_band"] == "High").sum())
-    average = scored["risk_score"].mean() if total else 0.0
-    expected = scored["scenario_drawdown_pct"].mean() if total else 0.0
-
-    a, b, c, d = st.columns(4)
-    a.metric("Companies assessed", f"{total:,}")
-    b.metric("Average risk score", f"{average:.1f}/100")
-    c.metric("High-risk names", f"{high:,}")
-    d.metric("Average scenario drawdown", f"{expected:.1%}")
-
-    st.subheader("Country comparison")
-    chart = summary.set_index("country")[["average_risk_score", "high_risk_share"]]
-    st.bar_chart(chart)
-
-    st.subheader("Company review table")
-    display_columns = [
-        col for col in ["country", "ticker", "name", "risk_score", "risk_band", "scenario_drawdown_pct", "valuation_risk", "earnings_risk", "market_risk"]
-        if col in scored.columns
+    st.subheader("Price-risk screen")
+    columns = [
+        "ticker", "company", "country", "theme", "risk_score", "risk_band", "return_3m", "return_6m", "return_12m",
+        "distance_ma50", "distance_ma200", "distance_trailing_high", "annualized_volatility", "max_drawdown", "close", "data_date",
     ]
+    table = filtered[columns].copy().sort_values("risk_score", ascending=False)
+    numeric_columns = [c for c in columns if c not in {"ticker", "company", "country", "theme", "risk_band", "data_date"}]
     st.dataframe(
-        scored[display_columns].sort_values(["risk_score", "scenario_drawdown_pct"], ascending=[False, True]),
+        table,
         use_container_width=True,
         hide_index=True,
-        column_config={
-            "risk_score": st.column_config.NumberColumn("Risk score", format="%.1f"),
-            "scenario_drawdown_pct": st.column_config.NumberColumn("Scenario drawdown", format="%.1f%%"),
-        },
+        column_config={column: st.column_config.NumberColumn(format="%.1f") for column in numeric_columns},
     )
 
-    st.subheader("Methodology")
-    st.markdown("Risk scores are scenario-based and range from 0 to 100. Read `docs/bubble-risk-methodology.md` for factor definitions, default assumptions, and limitations.")
+st.subheader("Failed downloads")
+if failed_downloads.empty:
+    st.success("Every watchlist ticker returned enough daily price history for the current calculation window.")
+else:
+    st.dataframe(failed_downloads[["ticker", "company", "country", "exchange", "reason"]], use_container_width=True, hide_index=True)
+    st.caption("Failures are shown explicitly rather than being replaced with simulated values. Yahoo Finance symbols, availability, and history can change.")
 
-
-if __name__ == "__main__":
-    main()
+with st.expander("How the score works"):
+    st.markdown("""
+The 0–100 score ranks only the securities that returned valid data in the current refresh. It combines six-month momentum (30%), distance above the 200-day moving average (20%), proximity to the trailing high (15%), annualized historical volatility (20%), and maximum-drawdown severity (15%). A high score indicates relative price extension and realized risk within this selected universe—not a forecast of a bubble or a trading signal.
+""")

@@ -1,34 +1,85 @@
-"""Data-loading helpers for the dashboard."""
+"""Live Yahoo Finance price retrieval and data-quality reporting."""
+from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Iterable
 
 import pandas as pd
+import yfinance as yf
 
-from .config import REQUIRED_TICKER_COLUMNS, TICKERS_PATH
+DEFAULT_PERIOD = "2y"
+REQUIRED_HISTORY_DAYS = 210
 
 
-def load_tickers(path: str | Path = TICKERS_PATH) -> pd.DataFrame:
-    """Load and validate the equity watchlist CSV."""
-    tickers = pd.read_csv(path)
-    missing = REQUIRED_TICKER_COLUMNS.difference(tickers.columns)
+@dataclass
+class MarketDataResult:
+    prices: dict[str, pd.Series]
+    failures: pd.DataFrame
+    updated_at: datetime
+
+
+def load_watchlist(path: str | Path = "data/tickers.csv") -> pd.DataFrame:
+    """Load and validate the dashboard watchlist."""
+    watchlist = pd.read_csv(path, dtype=str).fillna("")
+    required = {"company", "ticker", "country", "exchange", "theme"}
+    missing = required.difference(watchlist.columns)
     if missing:
-        raise ValueError(f"Ticker file is missing required columns: {sorted(missing)}")
-
-    tickers["ticker"] = tickers["ticker"].astype(str).str.strip()
-    if tickers["ticker"].eq("").any():
-        raise ValueError("Ticker file contains blank ticker symbols.")
-
-    return tickers.sort_values(["country", "company", "ticker"]).reset_index(drop=True)
+        raise ValueError(f"Watchlist is missing columns: {', '.join(sorted(missing))}")
+    watchlist["ticker"] = watchlist["ticker"].str.strip()
+    return watchlist.drop_duplicates(subset="ticker").reset_index(drop=True)
 
 
-def validate_watchlist(tickers: pd.DataFrame) -> pd.DataFrame:
-    """Return rows that may require manual review before analysis."""
-    duplicate_tickers = tickers[tickers.duplicated("ticker", keep=False)].copy()
-    duplicate_tickers["review_reason"] = "duplicate ticker"
+def _close_series(frame: pd.DataFrame, ticker: str) -> pd.Series:
+    if frame.empty:
+        return pd.Series(dtype=float)
+    if isinstance(frame.columns, pd.MultiIndex):
+        if ("Close", ticker) in frame.columns:
+            series = frame[("Close", ticker)]
+        elif ("Adj Close", ticker) in frame.columns:
+            series = frame[("Adj Close", ticker)]
+        else:
+            return pd.Series(dtype=float)
+    else:
+        column = "Close" if "Close" in frame.columns else "Adj Close"
+        series = frame[column] if column in frame.columns else pd.Series(dtype=float)
+    return pd.to_numeric(series, errors="coerce").dropna().rename(ticker)
 
-    company_counts = tickers.groupby("company")["ticker"].transform("count")
-    multi_listed = tickers.loc[company_counts.gt(1)].copy()
-    multi_listed["review_reason"] = "multiple listings; prevent double counting"
 
-    review = pd.concat([duplicate_tickers, multi_listed], ignore_index=True)
-    return review.drop_duplicates(subset=["ticker", "review_reason"]).reset_index(drop=True)
+def download_prices(tickers: Iterable[str], period: str = DEFAULT_PERIOD) -> MarketDataResult:
+    """Download daily close prices and record every unavailable or insufficient ticker."""
+    ticker_list = list(dict.fromkeys(str(t).strip() for t in tickers if str(t).strip()))
+    if not ticker_list:
+        return MarketDataResult({}, pd.DataFrame(columns=["ticker", "reason"]), datetime.now(timezone.utc))
+
+    try:
+        raw = yf.download(
+            tickers=ticker_list,
+            period=period,
+            interval="1d",
+            auto_adjust=True,
+            progress=False,
+            group_by="column",
+            threads=True,
+        )
+    except Exception as exc:
+        failures = pd.DataFrame({"ticker": ticker_list, "reason": [f"download error: {exc}"] * len(ticker_list)})
+        return MarketDataResult({}, failures, datetime.now(timezone.utc))
+
+    prices: dict[str, pd.Series] = {}
+    failures: list[dict[str, str]] = []
+    for ticker in ticker_list:
+        series = _close_series(raw, ticker)
+        if series.empty:
+            failures.append({"ticker": ticker, "reason": "No daily close prices returned by Yahoo Finance"})
+        elif len(series) < REQUIRED_HISTORY_DAYS:
+            failures.append({"ticker": ticker, "reason": f"Only {len(series)} observations; need at least {REQUIRED_HISTORY_DAYS}"})
+        else:
+            prices[ticker] = series
+
+    return MarketDataResult(
+        prices=prices,
+        failures=pd.DataFrame(failures, columns=["ticker", "reason"]),
+        updated_at=datetime.now(timezone.utc),
+    )

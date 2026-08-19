@@ -1,1 +1,1 @@
-"""Utilities for the Asia AI Equity Risk Dashboard."""
+"""Asia AI Equity Price-Risk Dashboard package."""

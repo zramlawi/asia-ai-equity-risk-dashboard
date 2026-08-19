@@ -1,50 +1,48 @@
-# Bubble-risk methodology
+# Price-Risk Methodology
 
 ## Purpose
 
-This dashboard is a transparent **scenario-analysis tool**, not a forecast, valuation model, credit rating, or investment recommendation. It ranks the relative downside sensitivity of companies in the supplied universe when a broad technology risk-off event coincides with AI-related valuation compression and earnings disappointment.
+This dashboard is a **relative price-risk screen** for a selected universe of Asian AI, semiconductor, and technology equities. It highlights securities with a combination of recent price strength, technical extension, volatility, and drawdown behavior. It does not estimate intrinsic value, forecast returns, or diagnose a financial bubble.
 
-## Inputs
+## Market data
 
-The dashboard reads `data/tickers.csv`. The only required columns are:
+At refresh time, the app requests approximately two years of daily auto-adjusted close data through Yahoo Finance and the `yfinance` Python package. A ticker must have at least 210 daily observations to enter the calculations. Tickers that return no data or insufficient history appear in the failed-download table and receive no substituted score.
 
-- `country`
-- `ticker`
-- `name`
+Yahoo Finance data may be delayed, incomplete, revised, or unavailable. The returned history, market holidays, corporate-action treatment, and ticker coverage can differ by exchange and over time.
 
-It optionally uses the following numeric fields (including documented aliases in `src/bubble.py`):
+## Observed metrics
 
-- **Valuation risk**: indicators such as valuation premium, valuation percentile, or a precomputed 0–100 score.
-- **Earnings risk**: indicators such as revision pressure, a normalized earnings score, or a precomputed 0–100 score.
-- **Market risk**: indicators such as volatility, beta, or a normalized market-risk score.
-- **AI exposure**: indicators such as AI revenue share or a normalized AI-exposure score.
+For each successfully downloaded security, the dashboard calculates:
 
-Each available input is transformed to a 0–1 scale. Values already on a 0–1 scale are retained; values on a 0–100 scale are divided by 100; other numeric series are min–max normalized within the loaded universe. Missing values, and entirely absent optional columns, receive neutral defaults: valuation 0.55, earnings 0.45, market 0.50, and AI exposure 0.50. This allows a basic ticker universe to run, but it also makes results less company-specific.
+- **3-, 6-, and 12-month return:** percent change over 63, 126, and 252 trading sessions, respectively.
+- **50-day and 200-day moving-average distance:** latest close divided by the corresponding simple moving average, minus one.
+- **Distance from trailing high:** latest close divided by the highest close in the returned history, minus one.
+- **Annualized volatility:** standard deviation of daily returns multiplied by the square root of 252.
+- **Maximum drawdown:** worst percentage decline from a preceding running high within the returned history.
 
-## Risk score
+## Score construction
 
-The company-level base score uses fixed factor weights:
+Each factor is converted to a percentile rank across only the securities with valid downloads in the current refresh. The 0–100 score is the following weighted sum:
 
-\[B = 0.35V + 0.25E + 0.25M + 0.15A\]
+\[
+Score = 0.30P(R_{6m}) + 0.20P(D_{200}) + 0.15P(D_{high}) + 0.20P(Vol) + 0.15P(-MDD)
+\]
 
-where \(V\), \(E\), \(M\), and \(A\) are the normalized valuation, earnings, market, and AI-exposure factors. The scenario intensity is:
+where:
 
-\[S = 0.40\min(1, |G|/0.40) + 0.35C + 0.25H\]
+- \(P\) is the cross-sectional percentile rank.
+- \(R_{6m}\) is six-month return.
+- \(D_{200}\) is distance from the 200-day moving average.
+- \(D_{high}\) is distance from the trailing high; securities closer to their high rank higher.
+- \(Vol\) is annualized historical volatility.
+- \(MDD\) is maximum drawdown; a more negative drawdown ranks as greater realized risk.
 
-where \(G\) is the global technology shock, \(C\) is valuation compression, and \(H\) is the earnings shortfall. The displayed score is:
+The display bands are Lower (0–40), Elevated (>40–70), and High (>70). They are labels for screen navigation, not investment ratings.
 
-\[100B(0.55 + 0.45S)\]
+## Interpretation and limits
 
-Scores at or below 35 are **Low**, above 35 through 65 are **Moderate**, and above 65 are **High**.
+A high score means the name ranks high in one or more price-extension or realized-risk characteristics **relative to the loaded watchlist**. It does not mean the price is unsustainable, and a low score does not mean a security is safe or attractive.
 
-## Scenario drawdown
+The model intentionally excludes valuation multiples, profitability, earnings revisions, cash flow, leverage, analyst expectations, options positioning, trading liquidity, governance, country risk, currency movements, and other fundamental or macroeconomic inputs. A dependable fundamentals provider and a separate methodology are required before adding those dimensions.
 
-The displayed scenario drawdown is a stylized sensitivity estimate, not a predicted return. It adds a market-shock component plus valuation- and earnings-shortfall components that increase with both the relevant risk factor and AI exposure. It is capped at -100%.
-
-## Limitations
-
-- The tool does not retrieve live prices, consensus estimates, financial statements, or macroeconomic data.
-- The results depend on input-data quality, country coverage, factor definitions, and the selected scenario.
-- Normalizing values within the file makes scores relative to the supplied universe, not absolute measures of risk.
-- Correlation, liquidity, FX effects, policy changes, portfolio weights, and nonlinear market dynamics are not modeled.
-- Do not use the output as the sole basis for an investment decision.
+The dashboard is for research and education only, not personalized investment advice, a recommendation, or a solicitation to buy or sell securities.
