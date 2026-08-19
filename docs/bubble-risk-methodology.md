@@ -1,0 +1,1 @@
+Methodology defining the 0–100 screening score, component weights, normalized indicators, country summaries, chart definitions, scenario formulae, interpretation bands, data coverage, and explicit limitations that it is not a bubble prediction or investment advice.
