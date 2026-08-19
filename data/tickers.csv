@@ -1,0 +1,11 @@
+ticker,company,country,exchange,currency,sector,theme,market_cap_bucket,notes
+000660.KS,SK hynix,South Korea,KRX,KRW,Semiconductors,AI memory,Large,Example watchlist row; verify symbols and coverage with your data provider
+005930.KS,Samsung Electronics,South Korea,KRX,KRW,Semiconductors,AI infrastructure,Large,Example watchlist row; verify symbols and coverage with your data provider
+TSM,Taiwan Semiconductor Manufacturing,Taiwan,NYSE,USD,Semiconductors,AI foundry,Large,ADR used as an example; replace with preferred local listing if needed
+2330.TW,Taiwan Semiconductor Manufacturing,Taiwan,TWSE,TWD,Semiconductors,AI foundry,Large,Local listing example
+9984.T,SoftBank Group,Japan,TSE,JPY,Technology,AI investment,Large,Example watchlist row; verify symbols and coverage with your data provider
+6758.T,Sony Group,Japan,TSE,JPY,Technology,AI platforms,Large,Example watchlist row; verify symbols and coverage with your data provider
+0700.HK,Tencent Holdings,China,HKEX,HKD,Internet,AI platforms,Large,Example watchlist row; verify symbols and coverage with your data provider
+9988.HK,Alibaba Group,China,HKEX,HKD,Internet,Cloud AI,Large,Example watchlist row; verify symbols and coverage with your data provider
+BABA,Alibaba Group,China,NYSE,USD,Internet,Cloud AI,Large,ADR used as an example; avoid double counting with local listing
+INFY,Infosys,India,NYSE,USD,IT services,Enterprise AI,Large,ADR used as an example; replace with NSE symbol when supported
