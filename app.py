@@ -1,93 +1,173 @@
 from __future__ import annotations
 
-from datetime import timedelta
+import json
 
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 
-from src.bubble import add_risk_score, calculate_price_metrics
-from src.data import download_prices, load_watchlist
-
-st.set_page_config(page_title="Asia AI Equity Price-Risk Dashboard", layout="wide")
-
-
-@st.cache_data(ttl=timedelta(minutes=30), show_spinner=False)
-def refresh_market_data() -> tuple[pd.DataFrame, pd.DataFrame, str]:
-    watchlist = load_watchlist()
-    result = download_prices(watchlist["ticker"])
-    metrics = add_risk_score(calculate_price_metrics(result.prices))
-    successful = watchlist.merge(metrics, on="ticker", how="inner")
-    failed = watchlist.merge(result.failures, on="ticker", how="inner")
-    return successful, failed, result.updated_at.strftime("%Y-%m-%d %H:%M UTC")
+from src.bubble import peer_comparison_chart
+from src.config import WORLD_BANK_INDICATORS
+from src.data import (
+    fetch_quotes,
+    fetch_world_bank_history,
+    fetch_world_bank_latest,
+    ticker_to_country,
+)
+from src.risk import score_company, score_peer_frame
 
 
-st.title("Asia AI Equity Price-Risk Dashboard")
-st.caption("A market-data research screen using Yahoo Finance daily prices. It measures relative price extension and realized risk; it does not predict bubbles or provide investment advice.")
+st.set_page_config(page_title="Asia AI Equity Risk Dashboard", layout="wide")
+st.title("Asia AI Equity Risk Dashboard")
+st.caption(
+    "A transparent research tool. Market and macro data may be delayed, incomplete, "
+    "or revised; this is not investment advice."
+)
 
-if st.button("Refresh market data", type="primary"):
-    st.cache_data.clear()
 
-with st.spinner("Downloading daily market data from Yahoo Finance..."):
-    results, failed_downloads, updated_at = refresh_market_data()
+def parse_tickers(value: str) -> list[str]:
+    return [item.strip().upper() for item in value.split(",") if item.strip()]
 
-st.caption(f"Last market-data update: {updated_at}")
 
-countries = ["All covered markets"] + sorted(results["country"].unique().tolist()) if not results.empty else ["All covered markets"]
-selected_country = st.selectbox("Country / market", countries)
-filtered = results if selected_country == "All covered markets" else results[results["country"] == selected_country]
+def metric_text(value: object, digits: int = 1) -> str:
+    return f"{float(value):.{digits}f}" if pd.notna(value) else "N/A"
 
-average_score = filtered["risk_score"].mean() if not filtered.empty else float("nan")
-high_risk = int((filtered["risk_band"] == "High").sum()) if not filtered.empty else 0
-c1, c2, c3, c4, c5 = st.columns(5)
-c1.metric("Watchlist names", len(load_watchlist()))
-c2.metric("Successful downloads", len(results))
-c3.metric("Failed downloads", len(failed_downloads))
-c4.metric("Average risk score", f"{average_score:.1f}" if pd.notna(average_score) else "—")
-c5.metric("High-risk names", high_risk)
 
-if filtered.empty:
-    st.warning("No valid prices were loaded for this selection. Review the failed-download table below and try refresh.")
-else:
-    country_summary = results.groupby("country", as_index=False).agg(
-        average_risk_score=("risk_score", "mean"),
-        high_risk_share=("risk_band", lambda x: (x == "High").mean() * 100),
-        names=("ticker", "count"),
+primary_ticker = st.sidebar.text_input("Primary ticker", value="TSM").strip().upper()
+peer_input = st.sidebar.text_input(
+    "Optional peer tickers (comma-separated)",
+    value="005930.KS, 9984.T, 0700.HK",
+)
+auto_country = ticker_to_country(primary_ticker)
+country_code = st.sidebar.text_input(
+    "World Bank country code (editable)",
+    value=auto_country,
+    help="Use an ISO-3 code. The automatic ticker mapping can be overridden.",
+).strip().upper()
+minimum_coverage = st.sidebar.slider(
+    "Minimum score coverage for peer percentile",
+    min_value=0.0,
+    max_value=1.0,
+    value=0.50,
+    step=0.05,
+)
+
+peer_tickers = parse_tickers(peer_input)
+tickers = list(dict.fromkeys([primary_ticker, *peer_tickers]))
+
+if st.button("Refresh data", type="primary"):
+    with st.spinner("Retrieving Yahoo Finance quotes and World Bank indicators…"):
+        quotes = fetch_quotes(tickers)
+        scores = score_peer_frame(quotes, minimum_coverage=minimum_coverage)
+
+        macro_error = None
+        try:
+            latest_macro = fetch_world_bank_latest(country_code, WORLD_BANK_INDICATORS)
+            histories = [
+                fetch_world_bank_history(country_code, name, code)
+                for name, code in WORLD_BANK_INDICATORS.items()
+            ]
+            macro_history = (
+                pd.concat(histories, ignore_index=True)
+                if histories
+                else pd.DataFrame()
+            )
+        except Exception as exc:
+            latest_macro = pd.DataFrame(
+                columns=["indicator", "year", "value", "country", "country_code"]
+            )
+            macro_history = pd.DataFrame()
+            macro_error = str(exc)
+
+        st.session_state.update(
+            {
+                "scores": scores,
+                "latest_macro": latest_macro,
+                "macro_history": macro_history,
+                "country_code": country_code,
+                "macro_error": macro_error,
+            }
+        )
+
+if "scores" not in st.session_state:
+    st.info("Set the tickers and click Refresh data.")
+    st.stop()
+
+scores = st.session_state["scores"]
+primary_rows = scores.loc[scores["ticker"] == primary_ticker]
+
+if not primary_rows.empty:
+    primary = primary_rows.iloc[0]
+    st.subheader(f"{primary_ticker}: data quality and transparent score")
+
+    if primary.get("provider_error"):
+        st.error(f"Yahoo Finance error: {primary['provider_error']}")
+    elif primary.get("is_fresh"):
+        st.success(primary.get("freshness_message", "Fresh Yahoo Finance quote."))
+    else:
+        st.warning(primary.get("freshness_message", "Yahoo Finance freshness unavailable."))
+
+    left, center_left, center_right, right = st.columns(4)
+    left.metric("Fundamental score", metric_text(primary.get("fundamental_score")))
+    center_left.metric("Liquidity score", metric_text(primary.get("liquidity_score")))
+    center_right.metric("Evidence coverage", f"{primary.get('coverage', 0):.0%}")
+    right.metric(
+        "Peer percentile",
+        metric_text(primary.get("percentile"), digits=0)
+        if pd.notna(primary.get("percentile"))
+        else "Insufficient coverage",
     )
-    chart_left, chart_right = st.columns(2)
-    with chart_left:
-        st.plotly_chart(
-            px.bar(country_summary, x="country", y="average_risk_score", color="average_risk_score", range_color=[0, 100], title="Average price-risk score by market"),
-            use_container_width=True,
-        )
-    with chart_right:
-        st.plotly_chart(
-            px.bar(country_summary, x="country", y="high_risk_share", color="high_risk_share", range_color=[0, 100], title="High-risk share by market (%)"),
-            use_container_width=True,
-        )
 
-    st.subheader("Price-risk screen")
-    columns = [
-        "ticker", "company", "country", "theme", "risk_score", "risk_band", "return_3m", "return_6m", "return_12m",
-        "distance_ma50", "distance_ma200", "distance_trailing_high", "annualized_volatility", "max_drawdown", "close", "data_date",
-    ]
-    table = filtered[columns].copy().sort_values("risk_score", ascending=False)
-    numeric_columns = [c for c in columns if c not in {"ticker", "company", "country", "theme", "risk_band", "data_date"}]
+    with st.expander("Scoring methodology and components"):
+        st.write(
+            "Fundamental score uses return on equity, operating margin, profit margin, "
+            "and revenue growth. Liquidity score uses current ratio, quick ratio, and "
+            "debt-to-equity. Missing fields lower evidence coverage rather than being imputed."
+        )
+        st.json(score_company(primary.to_dict()))
+
+st.subheader("Peer comparison")
+peer_columns = [
+    "ticker", "name", "price", "quote_age_hours", "is_fresh",
+    "fundamental_score", "liquidity_score", "overall_score",
+    "coverage", "percentile",
+]
+st.dataframe(scores.reindex(columns=peer_columns), use_container_width=True)
+if len(scores) > 1 and scores["overall_score"].notna().any():
+    st.plotly_chart(peer_comparison_chart(scores), use_container_width=True)
+
+st.subheader(f"World Bank macroeconomic context: {st.session_state['country_code']}")
+if st.session_state.get("macro_error"):
+    st.warning(f"World Bank data could not be retrieved: {st.session_state['macro_error']}")
+
+latest_macro = st.session_state["latest_macro"]
+if latest_macro.empty:
+    st.info("No World Bank observations were returned for the selected country code.")
+else:
     st.dataframe(
-        table,
+        latest_macro[["indicator", "year", "value"]],
         use_container_width=True,
-        hide_index=True,
-        column_config={column: st.column_config.NumberColumn(format="%.1f") for column in numeric_columns},
     )
 
-st.subheader("Failed downloads")
-if failed_downloads.empty:
-    st.success("Every watchlist ticker returned enough daily price history for the current calculation window.")
-else:
-    st.dataframe(failed_downloads[["ticker", "company", "country", "exchange", "reason"]], use_container_width=True, hide_index=True)
-    st.caption("Failures are shown explicitly rather than being replaced with simulated values. Yahoo Finance symbols, availability, and history can change.")
+macro_history = st.session_state["macro_history"]
+if not macro_history.empty:
+    macro_chart = macro_history.pivot(
+        index="year", columns="indicator", values="value"
+    ).sort_index()
+    st.line_chart(macro_chart)
 
-with st.expander("How the score works"):
-    st.markdown("""
-The 0–100 score ranks only the securities that returned valid data in the current refresh. It combines six-month momentum (30%), distance above the 200-day moving average (20%), proximity to the trailing high (15%), annualized historical volatility (20%), and maximum-drawdown severity (15%). A high score indicates relative price extension and realized risk within this selected universe—not a forecast of a bubble or a trading signal.
-""")
+st.subheader("CSV research snapshot")
+macro_snapshot = latest_macro[["indicator", "year", "value"]]
+snapshot = (
+    scores.merge(macro_snapshot, how="cross")
+    if not macro_snapshot.empty
+    else scores.copy()
+)
+st.download_button(
+    "Download CSV snapshot",
+    data=snapshot.to_csv(index=False).encode("utf-8"),
+    file_name=f"{primary_ticker.lower()}_risk_snapshot.csv",
+    mime="text/csv",
+)
+
+with st.expander("Raw snapshot preview"):
+    st.code(json.dumps(snapshot.head(20).to_dict(orient="records"), default=str, indent=2))
