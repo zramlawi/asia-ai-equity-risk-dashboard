@@ -16,12 +16,52 @@ from src.data import (
 from src.risk import score_company, score_peer_frame
 
 
-st.set_page_config(page_title="Asia AI Equity Risk Dashboard", layout="wide")
-st.title("Asia AI Equity Risk Dashboard")
-st.caption(
-    "A transparent research tool. Market and macro data may be delayed, incomplete, "
-    "or revised; this is not investment advice."
-)
+COUNTRY_OPTIONS = {
+    "Afghanistan": "AFG", "Albania": "ALB", "Algeria": "DZA", "American Samoa": "ASM", "Andorra": "AND",
+    "Angola": "AGO", "Antigua and Barbuda": "ATG", "Argentina": "ARG", "Armenia": "ARM", "Aruba": "ABW",
+    "Australia": "AUS", "Austria": "AUT", "Azerbaijan": "AZE", "Bahamas": "BHS", "Bahrain": "BHR",
+    "Bangladesh": "BGD", "Barbados": "BRB", "Belarus": "BLR", "Belgium": "BEL", "Belize": "BLZ",
+    "Benin": "BEN", "Bermuda": "BMU", "Bhutan": "BTN", "Bolivia": "BOL", "Bosnia and Herzegovina": "BIH",
+    "Botswana": "BWA", "Brazil": "BRA", "Brunei Darussalam": "BRN", "Bulgaria": "BGR", "Burkina Faso": "BFA",
+    "Burundi": "BDI", "Cabo Verde": "CPV", "Cambodia": "KHM", "Cameroon": "CMR", "Canada": "CAN",
+    "Cayman Islands": "CYM", "Central African Republic": "CAF", "Chad": "TCD", "Chile": "CHL",
+    "China": "CHN", "Colombia": "COL", "Comoros": "COM", "Congo, Dem. Rep.": "COD", "Congo, Rep.": "COG",
+    "Costa Rica": "CRI", "Cote d'Ivoire": "CIV", "Croatia": "HRV", "Cuba": "CUB", "Curacao": "CUW",
+    "Cyprus": "CYP", "Czechia": "CZE", "Denmark": "DNK", "Djibouti": "DJI", "Dominica": "DMA",
+    "Dominican Republic": "DOM", "Ecuador": "ECU", "Egypt, Arab Rep.": "EGY", "El Salvador": "SLV", "Equatorial Guinea": "GNQ",
+    "Eritrea": "ERI", "Estonia": "EST", "Eswatini": "SWZ", "Ethiopia": "ETH", "Faroe Islands": "FRO",
+    "Fiji": "FJI", "Finland": "FIN", "France": "FRA", "French Polynesia": "PYF", "Gabon": "GAB",
+    "Gambia, The": "GMB", "Georgia": "GEO", "Germany": "DEU", "Ghana": "GHA", "Gibraltar": "GIB",
+    "Greece": "GRC", "Greenland": "GRL", "Grenada": "GRD", "Guam": "GUM", "Guatemala": "GTM",
+    "Guinea": "GIN", "Guinea-Bissau": "GNB", "Guyana": "GUY", "Haiti": "HTI", "Honduras": "HND",
+    "Hong Kong SAR, China": "HKG", "Hungary": "HUN", "Iceland": "ISL", "India": "IND", "Indonesia": "IDN",
+    "Iran, Islamic Rep.": "IRN", "Iraq": "IRQ", "Ireland": "IRL", "Isle of Man": "IMN", "Israel": "ISR",
+    "Italy": "ITA", "Jamaica": "JAM", "Japan": "JPN", "Jordan": "JOR", "Kazakhstan": "KAZ",
+    "Kenya": "KEN", "Kiribati": "KIR", "Korea, Dem. People's Rep.": "PRK", "Korea, Rep.": "KOR", "Kosovo": "XKX",
+    "Kuwait": "KWT", "Kyrgyz Republic": "KGZ", "Lao PDR": "LAO", "Latvia": "LVA", "Lebanon": "LBN",
+    "Lesotho": "LSO", "Liberia": "LBR", "Libya": "LBY", "Liechtenstein": "LIE", "Lithuania": "LTU",
+    "Luxembourg": "LUX", "Macao SAR, China": "MAC", "Madagascar": "MDG", "Malawi": "MWI", "Malaysia": "MYS",
+    "Maldives": "MDV", "Mali": "MLI", "Malta": "MLT", "Marshall Islands": "MHL", "Mauritania": "MRT",
+    "Mauritius": "MUS", "Mexico": "MEX", "Micronesia, Fed. Sts.": "FSM", "Moldova": "MDA", "Monaco": "MCO",
+    "Mongolia": "MNG", "Montenegro": "MNE", "Morocco": "MAR", "Mozambique": "MOZ", "Myanmar": "MMR",
+    "Namibia": "NAM", "Nauru": "NRU", "Nepal": "NPL", "Netherlands": "NLD", "New Caledonia": "NCL",
+    "New Zealand": "NZL", "Nicaragua": "NIC", "Niger": "NER", "Nigeria": "NGA", "North Macedonia": "MKD",
+    "Northern Mariana Islands": "MNP", "Norway": "NOR", "Oman": "OMN", "Pakistan": "PAK", "Palau": "PLW",
+    "Panama": "PAN", "Papua New Guinea": "PNG", "Paraguay": "PRY", "Peru": "PER", "Philippines": "PHL",
+    "Poland": "POL", "Portugal": "PRT", "Puerto Rico": "PRI", "Qatar": "QAT", "Romania": "ROU",
+    "Russian Federation": "RUS", "Rwanda": "RWA", "Samoa": "WSM", "San Marino": "SMR", "Sao Tome and Principe": "STP",
+    "Saudi Arabia": "SAU", "Senegal": "SEN", "Serbia": "SRB", "Seychelles": "SYC", "Sierra Leone": "SLE",
+    "Singapore": "SGP", "Sint Maarten (Dutch part)": "SXM", "Slovak Republic": "SVK", "Slovenia": "SVN", "Solomon Islands": "SLB",
+    "Somalia": "SOM", "South Africa": "ZAF", "South Sudan": "SSD", "Spain": "ESP", "Sri Lanka": "LKA",
+    "St. Kitts and Nevis": "KNA", "St. Lucia": "LCA", "St. Martin (French part)": "MAF", "St. Vincent and the Grenadines": "VCT",
+    "Sudan": "SDN", "Suriname": "SUR", "Sweden": "SWE", "Switzerland": "CHE", "Syrian Arab Republic": "SYR",
+    "Tajikistan": "TJK", "Tanzania": "TZA", "Thailand": "THA", "Timor-Leste": "TLS", "Togo": "TGO",
+    "Tonga": "TON", "Trinidad and Tobago": "TTO", "Tunisia": "TUN", "Turkiye": "TUR", "Turks and Caicos Islands": "TCA",
+    "Tuvalu": "TUV", "Uganda": "UGA", "Ukraine": "UKR", "United Arab Emirates": "ARE", "United Kingdom": "GBR",
+    "United States": "USA", "Uruguay": "URY", "Uzbekistan": "UZB", "Vanuatu": "VUT", "Venezuela, RB": "VEN",
+    "Vietnam": "VNM", "Virgin Islands (U.S.)": "VIR", "West Bank and Gaza": "PSE", "Yemen, Rep.": "YEM",
+    "Zambia": "ZMB", "Zimbabwe": "ZWE",
+}
 
 
 def parse_tickers(value: str) -> list[str]:
@@ -38,11 +78,37 @@ peer_input = st.sidebar.text_input(
     value="005930.KS, 9984.T, 0700.HK",
 )
 auto_country = ticker_to_country(primary_ticker)
-country_code = st.sidebar.text_input(
-    "World Bank country code (editable)",
-    value=auto_country,
-    help="Use an ISO-3 code. The automatic ticker mapping can be overridden.",
+country_names = list(COUNTRY_OPTIONS)
+auto_country_name = next(
+    (name for name, code in COUNTRY_OPTIONS.items() if code == auto_country),
+    country_names[0],
+)
+
+if "country_selector" not in st.session_state:
+    st.session_state.country_selector = auto_country_name
+if "previous_primary_ticker" not in st.session_state:
+    st.session_state.previous_primary_ticker = primary_ticker
+if primary_ticker != st.session_state.previous_primary_ticker:
+    st.session_state.country_selector = auto_country_name
+    st.session_state.previous_primary_ticker = primary_ticker
+
+selected_country_name = st.sidebar.selectbox(
+    "World Bank country",
+    options=country_names,
+    key="country_selector",
+    help="Choose a country from the full World Bank country list. It defaults from the primary ticker.",
+)
+selected_country_code = COUNTRY_OPTIONS[selected_country_name]
+manual_country_code = st.sidebar.text_input(
+    "Manual ISO-3 override (optional)",
+    value="",
+    max_chars=3,
+    help="Enter a three-letter World Bank country code to override the dropdown, including codes not listed above.",
 ).strip().upper()
+country_code = manual_country_code or selected_country_code
+if manual_country_code and (len(manual_country_code) != 3 or not manual_country_code.isalpha()):
+    st.sidebar.warning("Use a three-letter ISO-3 country code, such as TWN or USA.")
+
 minimum_coverage = st.sidebar.slider(
     "Minimum score coverage for peer percentile",
     min_value=0.0,
