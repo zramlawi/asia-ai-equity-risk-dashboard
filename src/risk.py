@@ -1,41 +1,118 @@
-"""Simple, transparent risk metrics for daily adjusted-close prices."""
+from __future__ import annotations
+
+from typing import Mapping
 
 import numpy as np
 import pandas as pd
 
-
-def daily_returns(prices: pd.DataFrame) -> pd.DataFrame:
-    """Calculate simple daily returns from a wide price table."""
-    if prices.empty:
-        raise ValueError("Prices cannot be empty.")
-    return prices.sort_index().pct_change(fill_method=None).dropna(how="all")
+from .config import FUNDAMENTAL_WEIGHTS, LIQUIDITY_WEIGHTS
 
 
-def annualized_volatility(returns: pd.DataFrame, trading_days: int = 252) -> pd.Series:
-    """Calculate annualized sample volatility for each ticker."""
-    if trading_days <= 0:
-        raise ValueError("trading_days must be positive.")
-    return returns.std(ddof=1) * np.sqrt(trading_days)
+def _bounded(value: object, low: float, high: float) -> float | None:
+    """Normalize a metric to 0-100 without inventing a score for missing data."""
+    if value is None or pd.isna(value):
+        return None
+    return float(np.clip((float(value) - low) / (high - low) * 100, 0, 100))
 
 
-def maximum_drawdown(prices: pd.DataFrame) -> pd.Series:
-    """Calculate maximum drawdown for each ticker as a negative decimal."""
-    normalized = prices.sort_index().div(prices.sort_index().iloc[0])
-    drawdown = normalized.div(normalized.cummax()).sub(1)
-    return drawdown.min()
+def _debt_score(value: object) -> float | None:
+    """Invert debt-to-equity so lower leverage receives a higher liquidity score."""
+    if value is None or pd.isna(value):
+        return None
+    return float(np.clip(100 - float(value) / 2, 0, 100))
 
 
-def risk_snapshot(prices: pd.DataFrame, volatility_threshold: float = 0.40) -> pd.DataFrame:
-    """Build a compact, dashboard-ready table of core risk indicators."""
-    returns = daily_returns(prices)
-    snapshot = pd.DataFrame({
-        "annualized_volatility": annualized_volatility(returns),
-        "maximum_drawdown": maximum_drawdown(prices),
-        "observations": prices.notna().sum(),
-    })
-    snapshot["risk_flag"] = np.where(
-        snapshot["annualized_volatility"] >= volatility_threshold,
-        "review",
-        "normal",
+def weighted_score(
+    metrics: Mapping[str, object],
+    weights: Mapping[str, float],
+    transforms: Mapping[str, tuple[float, float] | str],
+) -> tuple[float | None, float, dict[str, float | None]]:
+    """Return score, weighted evidence coverage, and inspectable component scores."""
+    used_weight = 0.0
+    weighted_sum = 0.0
+    components: dict[str, float | None] = {}
+
+    for name, weight in weights.items():
+        transform = transforms[name]
+        component = (
+            _debt_score(metrics.get(name))
+            if transform == "debt"
+            else _bounded(metrics.get(name), *transform)
+        )
+        components[name] = component
+        if component is not None:
+            weighted_sum += component * weight
+            used_weight += weight
+
+    if used_weight == 0:
+        return None, 0.0, components
+    return weighted_sum / used_weight, used_weight / sum(weights.values()), components
+
+
+def score_company(metrics: Mapping[str, object]) -> dict[str, object]:
+    """Calculate transparent fundamental and liquidity scores from provider metrics."""
+    fundamental, fundamental_coverage, fundamental_components = weighted_score(
+        metrics,
+        FUNDAMENTAL_WEIGHTS,
+        {
+            "returnOnEquity": (-0.10, 0.35),
+            "operatingMargins": (-0.10, 0.40),
+            "profitMargins": (-0.10, 0.30),
+            "revenueGrowth": (-0.30, 0.50),
+        },
     )
-    return snapshot.sort_values("annualized_volatility", ascending=False)
+    liquidity, liquidity_coverage, liquidity_components = weighted_score(
+        metrics,
+        LIQUIDITY_WEIGHTS,
+        {
+            "currentRatio": (0.5, 3.0),
+            "quickRatio": (0.25, 2.5),
+            "debtToEquity": "debt",
+        },
+    )
+
+    available_scores = [score for score in (fundamental, liquidity) if score is not None]
+    return {
+        "fundamental_score": fundamental,
+        "liquidity_score": liquidity,
+        "overall_score": float(np.mean(available_scores)) if available_scores else None,
+        "coverage": (fundamental_coverage + liquidity_coverage) / 2,
+        "fundamental_coverage": fundamental_coverage,
+        "liquidity_coverage": liquidity_coverage,
+        "fundamental_components": fundamental_components,
+        "liquidity_components": liquidity_components,
+    }
+
+
+def coverage_aware_percentiles(
+    frame: pd.DataFrame,
+    score_column: str = "overall_score",
+    coverage_column: str = "coverage",
+    minimum_coverage: float = 0.50,
+) -> pd.DataFrame:
+    """Rank only peers that have enough observed scoring evidence."""
+    result = frame.copy()
+    eligible = result[score_column].notna() & (result[coverage_column] >= minimum_coverage)
+    result["percentile"] = np.nan
+    if eligible.any():
+        result.loc[eligible, "percentile"] = (
+            result.loc[eligible, score_column].rank(pct=True) * 100
+        )
+    result["percentile_eligible"] = eligible
+    return result
+
+
+def score_peer_frame(
+    frame: pd.DataFrame, minimum_coverage: float = 0.50
+) -> pd.DataFrame:
+    """Score each peer and attach coverage-aware percentile display fields."""
+    records = []
+    for _, row in frame.iterrows():
+        scored = score_company(row.to_dict())
+        records.append({
+            **row.to_dict(),
+            **{key: value for key, value in scored.items() if not key.endswith("components")},
+        })
+    return coverage_aware_percentiles(
+        pd.DataFrame(records), minimum_coverage=minimum_coverage
+    )
