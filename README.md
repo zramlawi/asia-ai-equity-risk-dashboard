@@ -1,51 +1,57 @@
-# Asia AI Equity Price-Risk Dashboard
+# Asia AI Equity Risk Dashboard
 
-An interactive Streamlit research screen for a focused universe of Asian AI, semiconductor, and major technology companies. It downloads daily market prices from Yahoo Finance at refresh time and calculates transparent, price-derived risk indicators.
+A Streamlit research dashboard for examining selected Asian equity proxies alongside country-level macroeconomic context. It is an educational scenario-analysis tool, not investment advice.
 
-> This is a research screen, not investment advice. A high score is not a prediction that a security will fall or that a market bubble exists.
+## Features
 
-## What it covers
-
-The default watchlist contains 40 companies across Japan, South Korea, Taiwan, China and Hong Kong, India, Singapore, and selected ASEAN markets. Every row in `data/tickers.csv` includes a company, exchange-compatible Yahoo Finance ticker, country, exchange, and theme label.
+- **Yahoo Finance reliability.** Every quote carries an explicit timestamp-based freshness state. Quotes more than 36 hours old, missing timestamps, and provider failures are displayed as stale or unavailable rather than presented as current.
+- **Ticker-to-country mapping.** Common exchange suffixes and selected tickers map automatically to a World Bank ISO-3 country code. The dashboard always provides an editable country-code field for analyst overrides.
+- **Optional peer comparison.** Enter comma-separated peers to compare fundamental and liquidity scores. Percentile ranks are shown only for peers meeting the selected minimum evidence-coverage threshold.
+- **World Bank context.** The dashboard displays the latest reported GDP growth, inflation, and unemployment observations plus annual history charts for the selected country.
+- **Transparent scoring.** Fundamental and liquidity components, normalized scores, weights, and observed-data coverage are visible in the interface. Missing metrics lower coverage; they are not imputed.
+- **CSV research snapshots.** Download the peer-scoring table with the latest macro indicators as a CSV file.
 
 ## Run locally
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
+source .venv/bin/activate
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Use **Refresh market data** to clear the 30-minute in-app cache and request a new Yahoo Finance download. The dashboard shows the exact UTC time of the latest fetch.
+## Using the dashboard
 
-## Data and indicators
+1. Enter a primary Yahoo Finance ticker.
+2. Optionally add comma-separated peer tickers.
+3. Review the automatically selected World Bank ISO-3 code and edit it when the issuer's relevant macro context differs from the default mapping.
+4. Choose the minimum evidence coverage required for peer percentiles.
+5. Select **Refresh data** to retrieve market and macroeconomic observations.
+6. Inspect freshness warnings, peer comparisons, macro history, and the downloadable snapshot.
 
-The app uses `yfinance` to request roughly two years of daily, auto-adjusted closing-price history. It reports a ticker as failed if Yahoo Finance returns no price series or fewer than 210 daily observations. It never invents a fallback price or risk score.
+## Data behavior
 
-For each valid ticker, the screen displays:
+Yahoo Finance is accessed through `yfinance`. A quote is labelled fresh only when the provider timestamp is no more than 36 hours old. A provider exception, absent timestamp, or stale timestamp is visible to the user. Market data may be delayed or incomplete.
 
-- Three-, six-, and 12-month returns.
-- Distance from the 50-day and 200-day moving averages.
-- Distance from the trailing high in the returned history.
-- Annualized historical daily-return volatility.
-- Maximum drawdown in the returned history.
-- A normalized 0–100 relative price-risk score.
+World Bank data is accessed through its public API. The dashboard requests annual observations, drops null values, displays the latest available observation for each indicator, and charts the recent annual history. Country indicators can be published with a lag and may be revised.
 
-See [the methodology](docs/bubble-risk-methodology.md) for the formula and interpretation.
+## Scoring methodology
 
-## Limitations and troubleshooting
+Scores are normalized to a 0-100 bounded scale using explicit ranges. The ranges are analytical heuristics, not predictions or investment recommendations.
 
-- Yahoo Finance data can be delayed, incomplete, unavailable, corrected, or revised. Exchange symbols may change.
-- Prices are real market observations but are not valuation, earnings, balance-sheet, cash-flow, analyst-estimate, ownership, or liquidity data.
-- The risk score is relative to the successfully downloaded current watchlist. It is not comparable to a score from a different watchlist or refresh without context.
-- A failed download table identifies symbols that need checking. First verify the ticker suffix and whether the exchange has current Yahoo Finance coverage, then refresh.
-- The dashboard requires internet access in its runtime environment. It is not designed to provide an offline market-data feed.
+| Score | Components | Weights |
+| --- | --- | --- |
+| Fundamental | Return on equity, operating margin, profit margin, revenue growth | 35%, 30%, 20%, 15% |
+| Liquidity | Current ratio, quick ratio, debt-to-equity (inverted) | 40%, 30%, 30% |
 
-## Project structure
+Each sub-score is a weighted average of observed components only. Its coverage is the sum of weights for available observations. Overall evidence coverage is the average of fundamental and liquidity coverage. A peer receives a percentile only when its coverage meets the user-selected floor.
 
-- `data/tickers.csv` — curated watchlist.
-- `src/data.py` — watchlist validation, Yahoo Finance download, and quality reporting.
-- `src/bubble.py` — price metrics and normalized relative risk score.
-- `app.py` — Streamlit user interface.
-- `docs/bubble-risk-methodology.md` — score design and limitations.
+## Testing
+
+Run the suite locally:
+
+```bash
+pytest -q
+```
+
+The tests cover ticker-country mapping and overrides, Yahoo timestamp freshness, World Bank normalization, transparent scoring, coverage calculation, and exclusion of low-coverage peers from percentiles. GitHub Actions runs the suite on Python 3.10, 3.11, and 3.12 for pushes and pull requests.
