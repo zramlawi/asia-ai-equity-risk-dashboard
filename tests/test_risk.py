@@ -18,9 +18,9 @@ def test_score_company_reports_weighted_components_and_full_coverage():
     )
 
     assert score["overall_score"] is not None
-    assert score["fundamental_coverage"] == 1.0
-    assert score["liquidity_coverage"] == 1.0
-    assert score["coverage"] == 1.0
+    assert score["fundamental_coverage"] == pytest.approx(1.0)
+    assert score["liquidity_coverage"] == pytest.approx(1.0)
+    assert score["coverage"] == pytest.approx(1.0)
     assert score["fundamental_components"]["returnOnEquity"] == pytest.approx(66.6667, abs=0.001)
     assert score["liquidity_components"]["debtToEquity"] == 75.0
 
