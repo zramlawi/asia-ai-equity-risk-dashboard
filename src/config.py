@@ -1,16 +1,35 @@
-from pathlib import Path
+from __future__ import annotations
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DATA_DIR = PROJECT_ROOT / "data"
-TICKERS_PATH = DATA_DIR / "tickers.csv"
+TICKER_COUNTRY_MAP = {
+    "TSM": "TWN",
+    "2330.TW": "TWN",
+    "005930.KS": "KOR",
+    "9984.T": "JPN",
+    "BABA": "CHN",
+    "0700.HK": "CHN",
+    "INFY.NS": "IND",
+    "TCEHY": "CHN",
+    "ASML": "NLD",
+}
 
-REQUIRED_TICKER_COLUMNS = {
-    "ticker",
-    "company",
-    "country",
-    "exchange",
-    "currency",
-    "sector",
-    "theme",
-    "market_cap_bucket",
+DEFAULT_COUNTRY_CODE = "WLD"
+MAX_YAHOO_AGE_HOURS = 36
+WORLD_BANK_BASE_URL = "https://api.worldbank.org/v2"
+WORLD_BANK_INDICATORS = {
+    "GDP growth (%)": "NY.GDP.MKTP.KD.ZG",
+    "Inflation (%)": "FP.CPI.TOTL.ZG",
+    "Unemployment (%)": "SL.UEM.TOTL.ZS",
+}
+
+FUNDAMENTAL_WEIGHTS = {
+    "returnOnEquity": 0.35,
+    "operatingMargins": 0.30,
+    "profitMargins": 0.20,
+    "revenueGrowth": 0.15,
+}
+
+LIQUIDITY_WEIGHTS = {
+    "currentRatio": 0.40,
+    "quickRatio": 0.30,
+    "debtToEquity": 0.30,
 }
