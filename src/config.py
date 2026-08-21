@@ -14,6 +14,8 @@ TICKER_COUNTRY_MAP = {
 
 DEFAULT_COUNTRY_CODE = "WLD"
 MAX_YAHOO_AGE_HOURS = 36
+MINIMUM_EVIDENCE_COVERAGE = 0.50
+
 WORLD_BANK_BASE_URL = "https://api.worldbank.org/v2"
 WORLD_BANK_INDICATORS = {
     "GDP growth (%)": "NY.GDP.MKTP.KD.ZG",
@@ -21,15 +23,52 @@ WORLD_BANK_INDICATORS = {
     "Unemployment (%)": "SL.UEM.TOTL.ZS",
 }
 
-FUNDAMENTAL_WEIGHTS = {
-    "returnOnEquity": 0.35,
-    "operatingMargins": 0.30,
-    "profitMargins": 0.20,
-    "revenueGrowth": 0.15,
+PILLAR_WEIGHTS = {
+    "price": 0.22,
+    "valuation": 0.22,
+    "fundamentals": 0.24,
+    "activity_volume": 0.16,
+    "fragility": 0.16,
 }
 
-LIQUIDITY_WEIGHTS = {
-    "currentRatio": 0.40,
-    "quickRatio": 0.30,
-    "debtToEquity": 0.30,
+PILLAR_FIELDS = {
+    "price": {
+        "momentum_3m": 0.45,
+        "momentum_6m": 0.55,
+    },
+    "valuation": {
+        "trailingPE": 0.30,
+        "forwardPE": 0.25,
+        "priceToBook": 0.20,
+        "enterpriseToEbitda": 0.25,
+    },
+    "fundamentals": {
+        "returnOnEquity": 0.25,
+        "operatingMargins": 0.25,
+        "profitMargins": 0.20,
+        "revenueGrowth": 0.15,
+        "freeCashflow": 0.15,
+    },
+    "activity_volume": {
+        "relative_volume": 0.60,
+        "volume_growth": 0.40,
+    },
+    "fragility": {
+        "annual_volatility": 0.40,
+        "max_drawdown": 0.35,
+        "debtToEquity": 0.25,
+    },
+}
+
+REGIME_RULES = {
+    "elevated_volatility": {
+        "threshold": 0.45,
+        "adjustment": 8.0,
+        "description": "Annualized volatility above 45% adds 8 risk points.",
+    },
+    "stressed_drawdown": {
+        "threshold": -0.30,
+        "adjustment": 10.0,
+        "description": "Maximum drawdown below -30% adds 10 risk points.",
+    },
 }

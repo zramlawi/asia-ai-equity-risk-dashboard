@@ -1,25 +1,35 @@
 # Asia & U.S. Equity Risk Dashboard
 
-A Streamlit dashboard for comparing curated Asian and U.S. market/company instruments, custom tickers, price behavior, and a transparent market-behavior speculation signal. It is for education and scenario analysis—not investment advice.
+A Streamlit dashboard for educational, evidence-aware scenario analysis of selected Asian and U.S. equities and market instruments. It is not investment advice.
 
-## Features
+## Core multi-signal upgrade
 
-- Region-specific **Asian Pacific** and **United States** market selectors.
-- Curated company presets: TSMC, Samsung, Toyota, Sony, Tencent, Alibaba, Infosys; NVIDIA, Microsoft, Apple, Amazon, Alphabet, Meta, and Tesla.
-- Comma-separated custom ticker support, including Yahoo Finance exchange suffixes such as `7203.T`.
-- Price-performance, risk-return, momentum-versus-fundamentals, and peer-comparison Plotly charts.
-- A transparent 0–100 speculation signal with component weights and explanation labels.
-- Yahoo Finance retrieval through `yfinance`, with deterministic synthetic price paths if data are unavailable. Fallback series are clearly identified and must not be interpreted as live market data.
+The dashboard replaces its illustrative fundamental proxy with Yahoo Finance fields available through `yfinance`. It combines five pillars:
 
-## Speculation signal
+- **Price:** three- and six-month momentum
+- **Valuation:** trailing/forward P/E, price-to-book, and EV/EBITDA
+- **Fundamentals:** return on equity, operating and profit margins, revenue growth, and free cash flow
+- **Activity/volume:** relative volume and volume change when Yahoo Finance coverage is available
+- **Fragility:** annualized volatility, maximum drawdown, and debt-to-equity
 
-The signal reflects observable price behavior, not value, quality, or a prediction. Its score is:
+## Evidence and data status
 
-- 45 points: six-month price momentum, capped at 60%.
-- 35 points: annualized trailing 63-trading-day volatility, capped at 80%.
-- 20 points: maximum drawdown, capped at 35%.
+Each Yahoo Finance observation is represented as **live**, **stale**, or **missing**. A field is score-eligible only when it is live and fresh (by default, no more than 36 hours old). Missing and stale evidence lowers coverage; it is never silently imputed.
 
-Scores below 34 are labeled lower, 34–66 moderate, and 67+ high speculation signal.
+When historical Yahoo Finance prices are unavailable, the app can display deterministic synthetic price paths for chart continuity. Those paths are explicitly labeled **fallback** and are excluded from all scoring and percentile calculations.
+
+## Scoring
+
+Pillar weights are price 22%, valuation 22%, fundamentals 24%, activity/volume 16%, and fragility 16%. The final score is reweighted only over live, score-eligible evidence. Scores with less than 50% weighted evidence are ineligible for peer percentiles.
+
+The dashboard also shows:
+
+- Peer-relative percentile among eligible selected instruments
+- Historical-style percentile within the displayed peer score distribution
+- Pillar contribution chart
+- Regime adjustments: +8 points for annualized volatility above 45% and +10 points for drawdown below -30%
+
+These transparent rules are scenario-analysis aids, not predictions or trading instructions. Yahoo Finance is a public, unofficial source and can be delayed, incomplete, or inconsistent by ticker and exchange.
 
 ## Run
 
@@ -30,10 +40,8 @@ streamlit run app.py
 
 ## Test
 
+The repository uses imports from the project root. Run:
+
 ```bash
-pytest -q
+PYTHONPATH=. pytest -q
 ```
-
-## Data behavior
-
-The app attempts Yahoo Finance first. A network error, delisted symbol, rate limit, or insufficient price history activates a deterministic fallback path. The fallback enables the interface and tests to work safely offline, but it is deliberately labeled so it cannot be mistaken for actual market history.

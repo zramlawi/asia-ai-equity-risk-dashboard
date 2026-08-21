@@ -5,37 +5,30 @@ import plotly.express as px
 
 
 def peer_comparison_chart(frame: pd.DataFrame):
-    """Plot peer fundamentals and liquidity without disguising missing coverage."""
     plot_data = frame.copy()
     plot_data["percentile_label"] = plot_data["percentile"].map(
-        lambda value: f"{value:.0f}" if pd.notna(value) else "Insufficient coverage"
+        lambda value: f"{value:.0f}" if pd.notna(value) else "Insufficient live evidence"
     )
     plot_data["freshness_label"] = plot_data["is_fresh"].map(
         {True: "Fresh", False: "Stale or unavailable"}
     ).fillna("Unavailable")
-    plot_data["bubble_size"] = pd.to_numeric(
-        plot_data.get("market_cap"), errors="coerce"
-    ).fillna(1)
-
+    plot_data["bubble_size"] = pd.to_numeric(plot_data.get("market_cap"), errors="coerce").fillna(1)
     return px.scatter(
         plot_data,
-        x="liquidity_score",
-        y="fundamental_score",
+        x="valuation_score",
+        y="fundamentals_score",
         size="bubble_size",
         color="coverage",
         hover_name="ticker",
         hover_data={
-            "overall_score": ":.1f",
-            "coverage": ":.0%",
-            "percentile_label": True,
-            "freshness_label": True,
-            "bubble_size": False,
+            "overall_score": ":.1f", "coverage": ":.0%", "percentile_label": True,
+            "freshness_label": True, "scoring_eligible": True, "bubble_size": False,
         },
         labels={
-            "liquidity_score": "Liquidity score",
-            "fundamental_score": "Fundamental score",
-            "coverage": "Evidence coverage",
+            "valuation_score": "Valuation pillar score",
+            "fundamentals_score": "Fundamentals pillar score",
+            "coverage": "Live evidence coverage",
         },
-        title="Peer comparison: fundamentals, liquidity, and evidence coverage",
+        title="Peer comparison: valuation, fundamentals, and live evidence coverage",
         size_max=60,
     )
